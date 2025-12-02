@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: poc-backend
+  namespace: hivezodiac
+  labels:
+    app: poc-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: poc-backend
+  template:
+    metadata:
+      labels:
+        app: poc-backend
+    spec:
+      containers:
+        - name: backend
+          image: poc-backend:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: BROKER_HOST
+              value: "hivezodiac.hivezodiac.svc.cluster.local"
+            - name: BROKER_PORT
+              value: "1883"
+          resources: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: poc-publisher
+  namespace: hivezodiac
+  labels:
+    app: poc-publisher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: poc-publisher
+  template:
+    metadata:
+      labels:
+        app: poc-publisher
+    spec:
+      containers:
+        - name: publisher
+          image: poc-publisher:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: BROKER_HOST
+              value: "hivezodiac.hivezodiac.svc.cluster.local"
+            - name: BROKER_PORT
+              value: "1883"
+            - name: CLIENT_ID
+              value: "publisher1"
+            - name: TOPIC
+              value: "db/ingest/device/device-1"
+            - name: USER
+              value: "device-1"
+            - name: PURPOSE
+              value: "ingest"
+            - name: INTERVAL
+              value: "5"
+          resources: {}
+---

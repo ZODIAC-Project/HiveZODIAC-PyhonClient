@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# TODO: Move this to a requirements.txt if more dependencies are added
+RUN pip install --no-cache-dir paho-mqtt==2.1.0
+
+# Copy full `poc` package so any imports work inside the container
+COPY poc /app/poc
+
+# Ensure Python finds /app on import path so `import poc` works if needed
+ENV PYTHONPATH=/app
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["sh", "-c", "python poc/backend.py "]
