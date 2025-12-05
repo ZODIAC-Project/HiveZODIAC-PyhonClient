@@ -1,9 +1,5 @@
 Minimal Setup: broker-mediated DB access control using reservation policies 
 =============================================================
-
-## Overview
-------------
-
 ## Files: 
 ------------
 - `Dockerfile.backend` — Dockerfile for the backend service (ingest + reservation enforcement).

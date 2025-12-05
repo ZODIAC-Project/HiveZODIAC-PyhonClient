@@ -1,0 +1,15 @@
+## Example overrides for kube-prometheus-stack
+## Adjust sizes and retention for your environment
+prometheus:
+  prometheusSpec:
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: 5Gi
+
+grafana:
+  persistence:
+    enabled: false
+    size: 5Gi
