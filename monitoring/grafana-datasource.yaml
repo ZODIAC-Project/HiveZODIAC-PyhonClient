@@ -15,6 +15,6 @@ data:
         access: proxy
         # point to the in-cluster prometheus service installed by kube-prometheus-stack
         url: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
-        isDefault: true
+        isDefault: false
         version: 1
         editable: false

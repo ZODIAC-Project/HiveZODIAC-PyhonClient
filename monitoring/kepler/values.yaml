@@ -1,0 +1,40 @@
+# Example Helm values for the Kepler chart.
+# Use with: `helm install kepler kepler/kepler -n monitoring -f monitoring/kepler/values.yaml`
+
+# Enable Prometheus metrics exposure
+metrics:
+  enabled: true
+  # port and path are examples; adapt to chart version if different
+  port: 9102
+  path: /metrics
+
+# If the chart supports ServiceMonitor integration, enable it here.
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 15s
+  path: /metrics
+  port: http
+
+# Node-level configuration, keep defaults unless you need to tune
+daemonset:
+  securityContext:
+    enabled: true
+  enabled: true
+  hostPID: true
+  volumes:
+    - name: proc
+      hostPath:
+        path: /proc
+    - name: sys
+      hostPath:
+        path: /sys
+
+# Resource requests/limits - tune for your cluster
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
