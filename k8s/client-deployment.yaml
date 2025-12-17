@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pos-client
+  labels:
+    app: pos-client
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pos-client
+  template:
+    metadata:
+      labels:
+        app: pos-client
+    spec:
+      containers:
+      - name: client
+        image: pos-client:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        env:
+        - name: LLM_URL
+          value: "http://llm-service.default.svc.cluster.local:8000/api"
+        - name: MANDANT_ID
+          value: "mandant_1234"
+        - name: NUM_MESSAGES
+          value: "10"
+        - name: POST_TIMEOUT
+          value: "10"
+        - name: SYSTEM_PROMPT
+          value: "You are an assistant that gets a receipe or a retained message from a POS terminal. Your Job is to ectact the Intend and Purpose of this transaction and send it to a Broker that has PBAC using you MCP server."
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pos-client
+spec:
+  selector:
+    app: pos-client
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
