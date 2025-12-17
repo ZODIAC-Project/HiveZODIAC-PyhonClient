@@ -27,7 +27,7 @@ if not SYSTEM_PROMPT:
         with open(prompt_file, "r", encoding="utf8") as f:
             SYSTEM_PROMPT = f.read().strip()
     except FileNotFoundError:
-        SYSTEM_PROMPT = "You are an assistant that returns JSON only."
+        SYSTEM_PROMPT = "You are an assistant that gets a receipe or a retained message from a POS terminal. Your Job is to ectact the Intend and Purpose of this transaction and send it to a Broker that has PBAC using you MCP server."
 
 app = Flask(__name__)
 
