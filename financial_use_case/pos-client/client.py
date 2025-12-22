@@ -9,6 +9,9 @@ from threading import Event
 import requests
 from flask import Flask, request, jsonify
 
+LOGGING_LEVEL = os.environ.get("LOGGING_LEVEL", "INFO").upper()
+logging.getLogger().setLevel(LOGGING_LEVEL)
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 # URL of the LLM endpoint 
@@ -27,7 +30,7 @@ if not SYSTEM_PROMPT:
         with open(prompt_file, "r", encoding="utf8") as f:
             SYSTEM_PROMPT = f.read().strip()
     except FileNotFoundError:
-        SYSTEM_PROMPT = "You are an assistant that gets a receipe or a retained message from a POS terminal. Your Job is to ectact the Intend and Purpose of this transaction and send it to a Broker that has PBAC using you MCP server."
+        SYSTEM_PROMPT = "Extract the Intend and Purpose of this transaction and send it to a Broker that has PBAC using you MCP server."
 
 app = Flask(__name__)
 
@@ -54,7 +57,7 @@ class PosClient:
             "total_gross": 8.80,
             "payment_method": "card",
             "cancellation_flag": False,
-            "cashier_id": "maxmustermann",
+            "cashier_id": "mathis",
             "store_id": MANDANT_ID,
         }
 
@@ -67,9 +70,10 @@ class PosClient:
             "receipts": receipts,
             "retained_summaries": [],
             "instructions": {
+                "topic": f"pos/{MANDANT_ID}/receipts",
                 "system_prompt": SYSTEM_PROMPT,
-                "analysis": "aggregate_vat_by_rate",
-                "return_format": "llm_response_v1"
+                "analysis": "",
+                "return_format": ""
             }
         }
 
@@ -129,7 +133,11 @@ class PosClient:
             body = response.text
         return {"status": "accepted", "request_id": context["request_id"], "llm_status": response.status_code, "llm_body": body}, response.status_code
 
-
+    def mock_data_generation(self):
+        """ TODO: This function sends a request to the LLM endpoint that tells it to generate random mock data."""
+        pass 
+    
+    
 client = PosClient()
 
 
@@ -140,6 +148,7 @@ def health():
 
 @app.route("/trigger", methods=["POST"])
 def trigger():
+    """ This endpoint can be used to send receipts or retained summaries to the LLM endpoint."""
     data = request.get_json(silent=True) or {}
     num = int(data.get("num_messages", 1))
     mode = data.get("mode", "receipt")  # 'receipt' or 'retained'
@@ -161,6 +170,7 @@ def trigger():
             "publish_topic": f"sales_summaries/{MANDANT_ID}/retained",
             "return_format": "ack",
         }
+        logging.debug(f"Context for retained summary: {json.dumps(context, indent=2)}")
         response = client.post_to_llm(context)
         if response is None:
             return jsonify({"status": "error", "message": "LLM unreachable"}), 503
@@ -173,6 +183,14 @@ def trigger():
     # default: send plain receipt(s) via LLM for further processing
     result, status = client.run_once(num_messages=num)
     return jsonify(result), status
+
+@app.route("/message", methods=["POST"])
+def message():
+    """TODO: This endpoint can be used to send manually written messages to the LLM endpoint. 
+            In our use case, we might want to send specific transactions or detailes that are not 
+            part of a receipt. 
+    """
+    return jsonify({"status": "not_implemented"}), 501
 
 
 def main():

@@ -22,7 +22,7 @@ spec:
         - containerPort: 8080
         env:
         - name: LLM_URL
-          value: "http://llm-service.default.svc.cluster.local:8000/api"
+          value: "http://elise.ise.tu-berlin.de:3000/"
         - name: MANDANT_ID
           value: "mandant_1234"
         - name: NUM_MESSAGES
@@ -31,7 +31,8 @@ spec:
           value: "10"
         - name: SYSTEM_PROMPT
           value: "You are an assistant that gets a receipe or a retained message from a POS terminal. Your Job is to ectact the Intend and Purpose of this transaction and send it to a Broker that has PBAC using you MCP server."
-
+        - name: LOGGING_LEVEL
+          value: "DEBUG"
 ---
 apiVersion: v1
 kind: Service
