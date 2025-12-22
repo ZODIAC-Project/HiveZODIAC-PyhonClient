@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-consumer
+  labels:
+    app: data-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-consumer
+  template:
+    metadata:
+      labels:
+        app: data-consumer
+    spec:
+      containers:
+      - name: data-consumer
+        image: data-consumer:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8090
+        env:
+        - name: RETAINED_TOPIC
+          value: "sales_summaries/mandant_1234/retained"
+        - name: MCP_CLIENT_URL
+          value: "http://mcp-client:8000/retrieve"
+        - name: MANDANT_ID
+          value: "mandant_1234"
+        - name: LOGGING_LEVEL
+          value: "DEBUG"
+        - name: INITIAL_RUN
+          value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-consumer
+spec:
+  selector:
+    app: data-consumer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8090
+  type: ClusterIP
