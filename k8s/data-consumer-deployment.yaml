@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: data-consumer
+  namespace: zodiac
   labels:
     app: data-consumer
 spec:
@@ -35,7 +36,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: data-consumer
+  name: data-consumer-service
+  namespace: zodiac
 spec:
   selector:
     app: data-consumer

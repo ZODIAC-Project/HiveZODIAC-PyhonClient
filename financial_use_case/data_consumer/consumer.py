@@ -8,7 +8,6 @@ from typing import Any, Dict
 import requests
 from flask import Flask, request, jsonify
 
-
 LOGGING_LEVEL = os.environ.get("LOGGING_LEVEL", "INFO").upper()
 logging.getLogger().setLevel(LOGGING_LEVEL)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

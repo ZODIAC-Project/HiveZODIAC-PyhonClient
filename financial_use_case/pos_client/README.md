@@ -1,4 +1,4 @@
-This POS client generates sample receips and sends them to a LLM endpoint.
+This POS client generates sample receips and sends them to the endpoint of a MCP Client.
 It can be configured to send a number of messages or retained messages.
 
 **Endpoints:**
@@ -16,7 +16,7 @@ POST /trigger
             {"mode":"retained","num_messages": <number_of_messages>}
 
 **Environment Variables:**
-LLM_URL: URL of the LLM endpoint (default: http://mock-llm:5000)
+MCP_URL: URL of the MCP endpoint (default: http://mcp-client:5000)
 MANDANT_ID: Name of the fictional store (default: mandant_1234)
 NUM_MESSAGES: Number of messages to send at startup (default: 0)
 POST_TIMEOUT: Timeout for POST requests to the LLM endpoint in seconds (default: 10)

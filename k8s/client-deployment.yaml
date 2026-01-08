@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pos-client
+  namespace: zodiac
   labels:
     app: pos-client
 spec:
@@ -21,12 +22,12 @@ spec:
         ports:
         - containerPort: 8080
         env:
-        - name: LLM_URL
-          value: "http://elise.ise.tu-berlin.de:3000/"
+        - name: MCP_URL
+          value: "http://hivezodiac:8000/"
         - name: MANDANT_ID
           value: "mandant_1234"
         - name: NUM_MESSAGES
-          value: "10"
+          value: "2"
         - name: POST_TIMEOUT
           value: "10"
         - name: SYSTEM_PROMPT
@@ -37,7 +38,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: pos-client
+  name: pos-client-service
+  namespace: zodiac
 spec:
   selector:
     app: pos-client
