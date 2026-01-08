@@ -32,7 +32,7 @@ if not SYSTEM_PROMPT:
 class DataConsumer:
 
     def build_mcp_payload(self, topic) -> Dict[str, Any]:
-        """Create the payload to send to the MCP client / LLM.
+        """Create the payload to send to the MCP client
         """
         return {
             "request_id": str(uuid.uuid4()),
