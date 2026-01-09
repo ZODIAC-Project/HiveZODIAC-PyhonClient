@@ -33,7 +33,7 @@ export POD_NAME=$(kubectl --namespace monitoring get pod -l "app.kubernetes.io/n
 **How to verify**
 - Port-forward Grafana and open http://localhost:3000 (script above)
 - Port-forward Prometheus: `kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-prometheus 9090:9090` and open http://localhost:9090/targets to see scrape targets.
-- If the Kepler installation was requested, check for Kepler pods and services in the `monitoring` namespace:
+- If the Kepler installation was used, check for Kepler pods and services in the `monitoring` namespace:
   ```bash
   kubectl -n monitoring get pods -l app.kubernetes.io/name=kepler
   kubectl -n monitoring get svc -l app.kubernetes.io/name=kepler

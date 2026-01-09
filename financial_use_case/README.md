@@ -2,14 +2,17 @@ This Folder holds the files used in the financial use case example.
 
 This use case consists of 5 main parts. Some are implemented at differend location. The location of the parts are mentioned in the description of each part.
 
-1. The data generation (POS)
-2. The broker (External)
-3. The MCP Server (External)
-4. The LLM (External)
-5. The Client 
+## Table of Contents
+1. [Data Generation](#data-generation)
+2. [The Broker](#the-broker)
+3. [The MCP Server](#the-mcp-server)
+4. [The POS-Client](#the-pos-client)
+5. [The Data Consumer](#the-data-consumer)
+6. [Architecture Diagram](#architecture-diagram)
+7. [Deployment Instructions](#deployment-instructions)
 
-**Data Genration**
-The data generation part is mocking a POS terminal which generates transaction data. This includes a normal stream of transaction data as well as some retained messages for data calculated for an time frame or something similiar. This Data could look like this: 
+## Data Generation
+The data generation part is mocking a POS terminal which generates transaction data. This includes a normal stream of transaction data as well as retained messages. This Data could look like this: 
 ```json
 {
   "id": "123456789",
@@ -26,15 +29,42 @@ The data generation part is mocking a POS terminal which generates transaction d
 }
 ```
 
-**The Broker**
+## The Broker
 The broker is a MQTT Broker that has the addition of using PBAC (Policy-Based Access Control) policies to control access to topics and messages. In Our case we are deploying the HiveMQ Broker with the [HivePBAC extension](https://github.com/ZODIAC-Project/HiveZODIAC). 
 
-**The MCP Server**
-TODO
-**The LLM**
-(This LLM can also be just an endpoint in the client. Ideally we dont want to deploy our own)The LLM is used to analyse a human readable request and extract the relevant information from it. In our case the goal of the request and the Purpose are most importand. 
+## The MCP Server
+[Purpose-Aware MCP Server](https://github.com/ZODIAC-Project/PurposeAwareMCP/blob/main/README.md)
 
-**The POS-Client**
+## The LLM
+TODO: Add LLM description 
+
+## The POS-Client
 The client simulates a a POS terminal that generates sample receipts and sends them to a LLM endpoint. It can be configured to send a number of messages or retained messages.
+
+## The Data Consumer
+The data consumer sends a request to the MCP client to retrieve retained messages for a specified topic.
+
+## Architecture Diagram
+![Architecture Diagram](../docs/UseCaseMCP.svg)
+
+## Deployment Instructions
+Frome home directory of this repository, follow these steps to deploy the financial use case in a kubernetes environment using minikube. Follow the deployments instruction of the external components to have a running broker and MCP server.
+
+```zsh
+docker build -f Dockerfile.dataConsumer -t data-consumer:latest . &&
+docker build -f Dockerfile.posClient -t pos-client:latest .
+```
+2. Load the Docker images into your Minikube cluster (if using Minikube):
+
+```zsh
+minikube image load data-consumer:latest &&
+minikube image load pos-client:latest
+```
+3. Apply both Kubernetes deployment manifest to create the resources:
+
+```zsh
+kubectl apply -f k8s/
+```
+
 
 
