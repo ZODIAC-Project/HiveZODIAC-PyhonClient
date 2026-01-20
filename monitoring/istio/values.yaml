@@ -1,0 +1,23 @@
+meshConfig:
+  enableTracing: false
+  accessLogFile: /dev/stdout
+
+pilot:
+  # Keep defaults minimal; Prometheus scraping handled via ServiceMonitor
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+global:
+  proxy:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

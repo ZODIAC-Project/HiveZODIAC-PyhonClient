@@ -10,15 +10,19 @@ Short guide to the in-repo monitoring deployment and helper script.
 
 **Script usage**
 ```bash
-./monitoring/kube-prometheus-stack.sh [--skip-deploy] [--only-apply-local] [--with-kepler] [<chart-version>] 
-```    
+./monitoring/kube-prometheus-stack.sh [--skip-deploy] [--only-apply-local] [--with-kepler] [--with-istio] [--with-kiali] [--with-mesh] [<chart-version>]
+```
+
 **Script flags**
 
 - `--skip-deploy`: Render the charts but skip `helm upgrade --install` (generating manifests without applying).
-- `--only-apply-local`: Skip chart rendering/helm, and only `kubectl apply` the local YAML files in `monitoring/`(for changes in local files like the grafana-datasource file).
+- `--only-apply-local`: Skip chart rendering/helm, and only `kubectl apply` the local YAML files in `monitoring/` (for changes in local files like the grafana-datasource file).
 - `--with-kepler`: (opt-in) Install Kepler via Helm after Prometheus becomes available.
+- `--with-istio`: Install Istio components (`base`, `istiod`, default ingress) and apply Istio `ServiceMonitor` manifests so Prometheus scrapes Istio metrics.
+- `--with-kiali`: Install Kiali (configured to use the in-repo Prometheus) into `istio-system` and apply its `ServiceMonitor`.
+- `--with-mesh`: Convenience flag that sets both `--with-istio` and `--with-kiali`.
 
-Note: When using `--only-apply-local`, the script will still apply local `ServiceMonitor` manifests such as `monitoring/kepler/servicemonitor.yaml` (so Prometheus scrape config is present), but it will not run Helm to install Kepler itself.
+Note: When using `--only-apply-local`, the script will apply local `ServiceMonitor` manifests such as `monitoring/kepler/servicemonitor.yaml`, `monitoring/istio/servicemonitors.yaml`, and `monitoring/kiali/servicemonitor.yaml` (so Prometheus scrape config is present), but it will not run Helm to install Istio/Kiali/Kepler themselves.
 
 **How to get the password for Grafana 'admin' user**
 ```bash

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: client
-        image: pos-client:latest
+        image: pos_client:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080

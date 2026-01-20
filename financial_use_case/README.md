@@ -51,14 +51,12 @@ The data consumer sends a request to the MCP client to retrieve retained message
 Frome home directory of this repository, follow these steps to deploy the financial use case in a kubernetes environment using minikube. Follow the deployments instruction of the external components to have a running broker and MCP server.
 
 ```zsh
-docker build -f Dockerfile.dataConsumer -t data-consumer:latest . &&
-docker build -f Dockerfile.posClient -t pos-client:latest .
+docker build -f financial_use_case/data_consumer/Dockerfile -t data_consumer:latest . && docker build -f financial_use_case/pos_client/Dockerfile -t pos_client:latest .
 ```
 2. Load the Docker images into your Minikube cluster (if using Minikube):
 
 ```zsh
-minikube image load data-consumer:latest &&
-minikube image load pos-client:latest
+minikube image load data_consumer:latest && minikube image load pos_client:latest
 ```
 3. Apply both Kubernetes deployment manifest to create the resources:
 

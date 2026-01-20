@@ -1,0 +1,18 @@
+auth:
+  strategy: anonymous
+
+server:
+  metrics:
+    enabled: true
+
+external_services:
+  prometheus:
+    url: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
+  grafana:
+    enabled: false
+  tracing:
+    enabled: false
+
+deployment:
+  namespace: istio-system
+  view_only_mode: true

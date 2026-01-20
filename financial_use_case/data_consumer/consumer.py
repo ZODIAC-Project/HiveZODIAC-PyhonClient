@@ -67,7 +67,7 @@ class DataConsumer:
                 logging.warning("Request attempt %d failed: %s", attempt, e)
                 time.sleep(attempt)
 
-        return {"status": "error", "message": "MCP client unreachable after retries", "url": url}
+        return {"status": "error", "message": "MCP client unreachable after retries", "url": mcp_url}
 
 consumer = DataConsumer()
 app = Flask(__name__)
