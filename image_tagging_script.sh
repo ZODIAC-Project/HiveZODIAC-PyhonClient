@@ -51,6 +51,7 @@ while [[ $# -gt 0 ]]; do
             DOCKERFILE_PATH="$1"
             shift
             ;;
+        
         --)
             shift
             break
@@ -74,8 +75,18 @@ if [ -z "$IMAGE_NAME" ] || [ -z "$K8S_FILE" ]; then
     echo "Usage: curl ... | bash -s -- <image-name> <k8s-file> <container-name-in-yaml>"
     exit 1
 fi
-echo ""
-echo "--- Starte Build-Prozess für $IMAGE_NAME ---"
+#print user input for human error validation 
+echo " _______________________________________________"
+echo "| Input:"
+echo "| Image Name: $IMAGE_NAME"
+echo "| Kubernetes YAML File: $K8S_FILE"
+if [ -n "$CONTAINER_NAME" ]; then
+    echo "| Container Name in YAML: $CONTAINER_NAME"
+fi
+echo "| Dockerfile Path: $DOCKERFILE_PATH"
+
+echo "|_______________________________________________"
+echo "|---> Starte Build-Prozess für $IMAGE_NAME"
 
 GIT_SHA=$(git rev-parse --short HEAD)
 FULL_IMAGE_NAME="${IMAGE_NAME}:${GIT_SHA}"
@@ -86,20 +97,39 @@ if [ ! -f "$DOCKERFILE_PATH" ]; then
     exit 1
 fi
 
-# Ensure logged in to Docker (simple check) 
-# TODO: This check is not working
-if ! docker info 2>/dev/null | grep -q '^Username:'; then
-    echo "Warning: docker does not appear to be logged in. Please run 'docker login' if pushing to a remote registry."
+# Ensure logged in to Docker
+# Old check relied on `docker info` printing a 'Username:' field which is
+# not present on some Docker installations. Instead, check ~/.docker/config.json
+# for auths/credsStore/credHelpers and fall back to the old docker info test.
+DOCKER_CONFIG_PATH="${DOCKER_CONFIG:-$HOME/.docker/config.json}"
+logged_in=false
+if [ -f "$DOCKER_CONFIG_PATH" ]; then
+    if grep -q '"auths"[[:space:]]*:' "$DOCKER_CONFIG_PATH" 2>/dev/null || \
+       grep -q '"credsStore"' "$DOCKER_CONFIG_PATH" 2>/dev/null || \
+       grep -q '"credHelpers"' "$DOCKER_CONFIG_PATH" 2>/dev/null; then
+        logged_in=true
+    fi
+fi
+# fallback: older Docker versions put Username in `docker info`
+if ! $logged_in; then
+    if docker info 2>/dev/null | grep -q '^Username:'; then
+        logged_in=true
+    fi
+fi
+if ! $logged_in; then
+    echo "|Warning: docker does not appear to be logged in. Please run 'docker login' if pushing to a remote registry."
 fi
 
-# build the image
-if ! docker build -f "$DOCKERFILE_PATH" -t "$FULL_IMAGE_NAME" .; then
-    echo "Error: docker build failed. Ensure Dockerfile is valid and docker daemon is running."
+BUILD_LOG=$(mktemp /tmp/image-build-log.XXXXXX)
+echo "| Building (quiet). Build output logged to $BUILD_LOG"
+if ! docker build -f "$DOCKERFILE_PATH" -t "$FULL_IMAGE_NAME" . > "$BUILD_LOG" 2>&1; then
+    echo "| Error: docker build failed. Showing build output (first 500 lines):"
+    sed -n '1,500p' "$BUILD_LOG" || true
+    rm -f "$BUILD_LOG"
     exit 1
 fi
-echo "|------------------------------------------"
-echo "|---> Docker image built: $FULL_IMAGE_NAME"
-echo "|"
+rm -f "$BUILD_LOG"
+echo "| Docker image built: $FULL_IMAGE_NAME"
 echo "|---> Pushing image to registry and retrieving digest... "
 
 # Push and capture output to extract digest if available
@@ -109,32 +139,39 @@ PUSH_OUTPUT=$(docker push "$FULL_IMAGE_NAME" 2>&1) || {
     exit 1
 }
 
-# Try to find digest in push output (pattern: sha256:...)
-# TODO: this is not stable. change it to use docker inspect 
-DIGEST=$(echo "$PUSH_OUTPUT" | grep -oE 'sha256:[a-f0-9]+' | head -n1 | sed 's/sha256://')
-if [ -z "$DIGEST" ]; then
-    # If not found, fall back to RepoDigests from docker inspect
-    if [ -z "$DIGEST" ]; then
-        DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$FULL_IMAGE_NAME" 2>/dev/null | cut -d'@' -f2)
+# Determine the pushed image digest in a robust way.
+# Prefer docker inspect RepoDigests (returns 'repo@sha256:...').
+# Fallbacks: explicit 'digest: sha256:...' in push output, then last sha256 token.
+REPO_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$FULL_IMAGE_NAME" 2>/dev/null || true)
+if [[ -n "$REPO_DIGEST" && "$REPO_DIGEST" == *@sha256:* ]]; then
+    DIGEST_FULL="${REPO_DIGEST#*@}"
+    DIGEST="${DIGEST_FULL#sha256:}"
+else
+    # try to find an explicit 'digest: sha256:...' (some registries print this)
+    PUSH_DIGEST=$(echo "$PUSH_OUTPUT" | grep -oE 'digest:\s*sha256:[a-f0-9]+' | head -n1 | sed 's/.*digest:\s*//') || true
+    if [[ -n "$PUSH_DIGEST" ]]; then
+        DIGEST_FULL="$PUSH_DIGEST"
+        DIGEST="${DIGEST_FULL#sha256:}"
+    else
+        # last resort: pick the last sha256:... token from the push output
+        LAST_SHA=$(echo "$PUSH_OUTPUT" | grep -oE 'sha256:[a-f0-9]+' | tail -n1 || true)
+        if [[ -n "$LAST_SHA" ]]; then
+            DIGEST_FULL="$LAST_SHA"
+            DIGEST="${DIGEST_FULL#sha256:}"
+        else
+            DIGEST=""
+        fi
     fi
 fi
 
-
 if [ -z "$DIGEST" ]; then
     echo "|Error: Could not retrieve digest. Was the image pushed?"
+    echo "|Try: docker inspect --format='{{index .RepoDigests}}' $FULL_IMAGE_NAME"
     exit 1
 fi
 
-echo "|---> Found digest: $DIGEST"
-echo "|"
+echo "| Found digest: $DIGEST"
 echo "|---> Updating Kubernetes YAML file: $K8S_FILE"
-# 3. Replace the image in the static YAML file
-# Ensure the digest includes the algorithm (e.g. sha256:...);
-if [[ "$DIGEST" =~ ^sha256: ]]; then
-    DIGEST_FULL="$DIGEST"
-else
-    DIGEST_FULL="sha256:${DIGEST}"
-fi
 NEW_IMAGE_REFERENCE="${IMAGE_NAME}@${DIGEST_FULL}"
 
 # Perform a global image replacement in the YAML file (portable sed)
@@ -151,7 +188,7 @@ IMAGE_BASENAME="${IMAGE_NAME##*/}"
 
 # Use a portable awk-based replacement that writes to a temp file and moves it into place.
 TMPFILE="$(mktemp "${K8S_FILE}.tmp.XXXXXX")"
-echo "|---> Using portable awk replacement (matching basename='${IMAGE_BASENAME}'), writing to $TMPFILE"
+echo "|Using portable awk replacement (matching basename='${IMAGE_BASENAME}'), writing to $TMPFILE"
 awk -v basename="$IMAGE_BASENAME" -v newref="$NEW_IMAGE_REFERENCE" '
   { if ($0 ~ /^[[:space:]]*image:/ && $0 ~ basename && !replaced) {
         match($0,/^[[:space:]]*/);
@@ -173,7 +210,7 @@ fi
 
 echo "|                              "
 echo "|---> Verifying replacement results (first matching lines):"
-grep -n -- "${NEW_IMAGE_REFERENCE}" "$K8S_FILE" | head -n 20 || echo "|  (no lines found containing the new image reference)"
+grep -- "| ${NEW_IMAGE_REFERENCE}" "$K8S_FILE" | head -n 20 || echo "|  (no lines found containing the new image reference)"
 
 if ! grep -q -- "${NEW_IMAGE_REFERENCE}" "$K8S_FILE"; then
     echo "| Replacement did not succeed."
@@ -200,6 +237,7 @@ if ! grep -q -- "${NEW_IMAGE_REFERENCE}" "$K8S_FILE"; then
     fi
 else
     echo "| Replacement succeeded. YAML file $K8S_FILE has been updated with the digest."
+    echo "|_____________________________________________"
 fi
-
-echo "| Ready for: kubectl apply -f $K8S_FILE"
+echo 
+echo "----> Ready for: kubectl apply -f $K8S_FILE"

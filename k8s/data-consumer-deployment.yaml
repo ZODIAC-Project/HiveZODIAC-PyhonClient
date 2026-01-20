@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: data-consumer
-        image: mathiskae/data_consumer@sha256:aad3c46546224b1d6181dc820914c6a5549c641fd6c13f48166d84b26bdda3e9
+        image: data_consumer:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8090
