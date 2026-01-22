@@ -17,6 +17,9 @@ Arguments:
 Options:
     -h, --help     Show this help message and exit
     -f, --dockerfile <path>  Use an alternative Dockerfile (default: Dockerfile)
+    -u, --username <user>     Docker registry username (optional)
+    -t, --token <token>       Registry token/password (use with care)
+    --token-file <path>       Read registry token/password from file (safer)
 
 Notes:
     - You must be logged in to your Docker registry before running this script.
@@ -35,6 +38,11 @@ fi
 # Default Dockerfile path
 DOCKERFILE_PATH="Dockerfile"
 
+# Optional registry credentials (can be provided via CLI flags or env)
+REGISTRY_USER=""
+REGISTRY_TOKEN=""
+TOKEN_FILE=""
+
 # Parse options
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -49,6 +57,33 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             DOCKERFILE_PATH="$1"
+            shift
+            ;;
+        -u|--username)
+            shift
+            if [ -z "$1" ]; then
+                echo "Error: --username requires a value"
+                exit 1
+            fi
+            REGISTRY_USER="$1"
+            shift
+            ;;
+        -t|--token)
+            shift
+            if [ -z "$1" ]; then
+                echo "Error: --token requires a value"
+                exit 1
+            fi
+            REGISTRY_TOKEN="$1"
+            shift
+            ;;
+        --token-file)
+            shift
+            if [ -z "$1" ]; then
+                echo "Error: --token-file requires a path"
+                exit 1
+            fi
+            TOKEN_FILE="$1"
             shift
             ;;
         
@@ -71,10 +106,6 @@ IMAGE_NAME=$1      # z.B. myrepo/myimage
 K8S_FILE=$2        # z.B. deployment.yaml
 CONTAINER_NAME=$3  # use container name in yaml 
 
-if [ -z "$IMAGE_NAME" ] || [ -z "$K8S_FILE" ]; then
-    echo "Usage: curl ... | bash -s -- <image-name> <k8s-file> <container-name-in-yaml>"
-    exit 1
-fi
 #print user input for human error validation 
 echo " _______________________________________________"
 echo "| Input:"
@@ -84,6 +115,14 @@ if [ -n "$CONTAINER_NAME" ]; then
     echo "| Container Name in YAML: $CONTAINER_NAME"
 fi
 echo "| Dockerfile Path: $DOCKERFILE_PATH"
+echo "| Username: ${REGISTRY_USER:-(not set)}"
+if [ -n "$TOKEN_FILE" ]; then
+    echo "| Token File: $TOKEN_FILE"
+elif [ -n "$REGISTRY_TOKEN" ]; then
+    echo "| Token: (provided via CLI)"
+else
+    echo "| Token: (not set)"
+fi  
 
 echo "|_______________________________________________"
 echo "|---> Starte Build-Prozess für $IMAGE_NAME"
@@ -95,6 +134,36 @@ FULL_IMAGE_NAME="${IMAGE_NAME}:${GIT_SHA}"
 if [ ! -f "$DOCKERFILE_PATH" ]; then
     echo "Error: No Dockerfile found at '$DOCKERFILE_PATH' in $(pwd). Place a Dockerfile there or pass -f /path/to/Dockerfile."
     exit 1
+fi
+
+# If a token file was provided, read it now (safer than passing token on CLI)
+if [ -n "$TOKEN_FILE" ]; then
+    if [ -f "$TOKEN_FILE" ]; then
+        REGISTRY_TOKEN=$(sed -n '1p' "$TOKEN_FILE")
+    else
+        echo "| Error: token file '$TOKEN_FILE' not found"
+        exit 1
+    fi
+fi
+
+# If a registry token (or password) was provided, attempt docker login for the registry
+# Extract registry host portion from the image name (host is before first '/')
+REGISTRY_HOST="$(echo "$IMAGE_NAME" | awk -F'/' '{print $1}')"
+if [ "$REGISTRY_HOST" = "$IMAGE_NAME" ]; then
+    # no explicit registry host present
+    REGISTRY_HOST=""
+fi
+
+if [ -n "$REGISTRY_TOKEN" ] && [ -n "$REGISTRY_HOST" ]; then
+    echo "| Info: attempting docker login to $REGISTRY_HOST"
+    # prefer explicit registry user, then DOCKER_USERNAME env, then local $USER
+    LOGIN_USER="${REGISTRY_USER:-${DOCKER_USERNAME:-$USER}}"
+    if echo "$REGISTRY_TOKEN" | docker login "$REGISTRY_HOST" -u "$LOGIN_USER" --password-stdin > /dev/null 2>&1; then
+        echo "| Info: docker login succeeded against $REGISTRY_HOST"
+        logged_in=true
+    else
+        echo "| Error: docker login to $REGISTRY_HOST failed (push may fail)."
+    fi
 fi
 
 # Ensure logged in to Docker

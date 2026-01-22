@@ -25,13 +25,13 @@ spec:
         - name: RETAINED_TOPIC
           value: "sales_summaries/mandant_1234/retained"
         - name: MCP_CLIENT_URL
-          value: "http://mcp-client:8000/retrieve"
+          value: "http://mcp-client-service:8000/chat"
         - name: MANDANT_ID
           value: "mandant_1234"
         - name: LOGGING_LEVEL
           value: "DEBUG"
         - name: INITIAL_RUN
-          value: "true"
+          value: "false"
 ---
 apiVersion: v1
 kind: Service

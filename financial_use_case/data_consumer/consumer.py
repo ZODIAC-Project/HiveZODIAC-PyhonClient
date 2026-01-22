@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 # topic has to be provided explicitly via env: sales_summaries/<mandant>/retained
 #TODO: Add dynamic mandant_id handling
 RETAINED_TOPIC_ENV = os.environ.get("RETAINED_TOPIC")
-MCP_CLIENT_URL = os.environ.get("MCP_CLIENT_URL", "http://mcp-client:8000/retrieve")
+MCP_CLIENT_URL = os.environ.get("MCP_CLIENT_URL", "http://mcp-client-service:8000/chat")
 INITIAL_RUN = os.environ.get("INITIAL_RUN", "false").lower() == "true"
 # system prompt: env var, fallback to file
 SYSTEM_PROMPT = os.environ.get("SYSTEM_PROMPT")
@@ -49,25 +49,58 @@ class DataConsumer:
         """Ask the MCP client to retrieve the retained message for `topic`.
         """
         payload = self.build_mcp_payload(topic)
-        logging.info("Requesting retained message for topic=%s via %s", topic, mcp_url)
-        # Simple retry loop
-        for attempt in range(1, 4):
+        logging.debug("Requesting retained message for topic=%s via %s", topic, mcp_url)
+        # Simple non-configurable retry: 3 attempts with 1s fixed sleep
+        max_attempts = 3
+        sleep_time = 1
+        # MCP /chat expects: {"message": "<string>", "session_id": "<id>"}
+        chat_payload = {
+            "message": json.dumps(payload),
+            "session_id": payload["request_id"],
+        }
+
+        for attempt in range(1, max_attempts + 1):
             try:
-                logging.debug("POST attempt %d to %s: %s", attempt, mcp_url, payload)
-                r = requests.post(mcp_url, json=payload, timeout=timeout)
-                r.raise_for_status()
+                logging.info("Sending request to MCP (attempt %d/%d) topic=%s", attempt, max_attempts, topic)
+                logging.debug("Outgoing chat_payload: %s", chat_payload)
+                r = requests.post(mcp_url, json=chat_payload, timeout=timeout)
+
+                logging.info("Received HTTP %s from MCP", r.status_code)
+                logging.debug("Response headers: %s", dict(r.headers))
+
+                if 200 <= r.status_code < 300:
+                    try:
+                        body = r.json()
+                    except Exception:
+                        logging.warning("Response not JSON, returning raw text")
+                        body = {"raw": r.text}
+
+                    return {"status": "ok", "http_status": r.status_code, "body": body}
+
+                # Non-2xx responses: log body and retry only on 5xx
+                resp_text = r.text
+                logging.error("MCP returned non-2xx status=%s body=%s", r.status_code, resp_text)
+
+                if r.status_code >= 500 and attempt < max_attempts:
+                    logging.info("Server error; retrying after %ds (attempt %d/%d)", sleep_time, attempt, max_attempts)
+                    time.sleep(sleep_time)
+                    continue
+
                 try:
-                    body = r.json()
+                    err_body = r.json()
                 except Exception:
-                    body = {"raw": r.text}
+                    err_body = {"raw": resp_text}
 
-                logging.info("Received response status=%s", r.status_code)
-                return {"status": "ok", "http_status": r.status_code, "body": body}
+                return {"status": "error", "http_status": r.status_code, "body": err_body, "url": mcp_url}
+
             except requests.RequestException as e:
-                logging.warning("Request attempt %d failed: %s", attempt, e)
-                time.sleep(attempt)
-
-        return {"status": "error", "message": "MCP client unreachable after retries", "url": mcp_url}
+                logging.warning("Request attempt %d failed with exception: %s", attempt, e)
+                if attempt < max_attempts:
+                    logging.info("Network error; retrying after %ds (attempt %d/%d)", sleep_time, attempt, max_attempts)
+                    time.sleep(sleep_time)
+                    continue
+                logging.exception("All attempts to contact MCP have failed")
+                return {"status": "error", "message": "MCP client unreachable after retries", "url": mcp_url}
 
 consumer = DataConsumer()
 app = Flask(__name__)
@@ -76,13 +109,35 @@ app = Flask(__name__)
 def retrieve_retained():
     data = request.get_json()
     topic = data.get("topic", RETAINED_TOPIC_ENV)
+    logging.debug("Received retrieve_retained request for topic=%s", topic)
+    try:
+        if not topic:
+            raise ValueError("No topic provided in request or RETAINED_TOPIC env var")
+    except Exception as e:
+        logging.error("Error in request: %s", e)
+        return jsonify({"status": "error", "message": str(e)}), 400 
     result = consumer.request_retained_message(topic=topic, mcp_url=MCP_CLIENT_URL)
-    return jsonify(result)
+    # If result-> body ->response is empty then log an error
+    if not result.get("body", {}).get("response"):
+        logging.error("No retained message found for topic=%s or an error occurred", topic)
+        return jsonify({"status": "error", "message": "No retained message found or an error occurred"}), 404
+    else:
+        
+        logging.debug("retrieve_retained result: %s", result)
+    # Return the retrieved message as part of the response
+    return jsonify({"status": "ok", "message": "Message received", "data": result}), 200 if result.get("status") == "ok" else 500
 
 if __name__ == "__main__":
-    
-    if INITIAL_RUN == True:
-        result = consumer.request_retained_message(topic=RETAINED_TOPIC_ENV, mcp_url=MCP_CLIENT_URL)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-        
+    if INITIAL_RUN:
+        try:
+            result = consumer.request_retained_message(topic=RETAINED_TOPIC_ENV, mcp_url=MCP_CLIENT_URL)
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            # fail fast if initial run did not succeed
+            if result.get("status") != "ok":
+                logging.error("Initial MCP request failed: %s", result)
+                raise SystemExit(1)
+        except Exception:
+            logging.exception("Initial MCP request failed, exiting")
+            raise
+
     app.run(host="0.0.0.0", port=8090)

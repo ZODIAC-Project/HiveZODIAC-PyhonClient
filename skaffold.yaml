@@ -1,0 +1,39 @@
+apiVersion: skaffold/v2beta26
+kind: Config
+metadata:
+  name: hivezodiac
+
+build:
+  # Local builds by default (good for minikube/dev). Set `push: true` for CI/registry pushes.
+  local:
+    push: false
+  artifacts:
+    - image: data_consumer
+      context: financial_use_case/data_consumer
+      docker:
+        dockerfile: Dockerfile
+    - image: pos_client
+      context: financial_use_case/pos_client
+      docker:
+        dockerfile: Dockerfile
+  tagPolicy:
+    inputDigest: {}
+
+deploy:
+  kubectl:
+    manifests:
+      - k8s/*.yaml
+
+# Profiles
+# - Use the 'push' profile when you want Skaffold to push images to a remote registry
+#   (useful in CI or when the cluster cannot access your local docker daemon).
+profiles:
+  - name: push
+    build:
+      local:
+        push: true
+    # Optional: when pushing, you may want to set a default-repo instead of fully
+    # qualifying image names in manifests/artifacts. Example:
+    # build:
+    #   defaultRepo: git.tu-berlin.de:5000/zodiac
+
